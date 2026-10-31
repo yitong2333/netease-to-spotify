@@ -1,10 +1,21 @@
+import os
+
 import requests
 
 
-API_BASE_URL = "https://wyy.yiton.uk"
-DAILY_RECOMMENDATIONS_URL = f"{API_BASE_URL}/recommend/songs"
-PLAYLIST_TRACKS_URL = f"{API_BASE_URL}/playlist/track/all"
+API_BASE_URL_ENV = "NETEASE_API_BASE_URL"
 PRIVATE_RADAR_PLAYLIST_ID = "3136952023"
+
+
+def _api_url(path: str, api_base_url: str | None = None) -> str:
+    base_url = (api_base_url or os.getenv(API_BASE_URL_ENV) or "").strip().rstrip("/")
+    if not base_url:
+        raise RuntimeError(
+            f"Missing required environment variable: {API_BASE_URL_ENV}"
+        )
+    if not base_url.startswith(("http://", "https://")):
+        raise ValueError(f"{API_BASE_URL_ENV} must start with http:// or https://")
+    return f"{base_url}/{path.lstrip('/')}"
 
 
 def _artist_names(song: dict) -> list[str]:
@@ -106,10 +117,15 @@ def _print_songs(source_name: str, songs: list[dict], *, verbose: bool) -> None:
     print(f"Found {len(songs)} NetEase {item_name}.\n")
 
 
-def get_daily_recommendations(cookie: str, *, verbose: bool = True) -> list[dict]:
+def get_daily_recommendations(
+    cookie: str,
+    *,
+    api_base_url: str | None = None,
+    verbose: bool = True,
+) -> list[dict]:
     """Fetch the logged-in account's NetEase daily recommendations."""
     songs = _fetch_songs(
-        DAILY_RECOMMENDATIONS_URL,
+        _api_url("recommend/songs", api_base_url),
         cookie,
         params={},
         song_list_path=("data", "dailySongs"),
@@ -119,10 +135,15 @@ def get_daily_recommendations(cookie: str, *, verbose: bool = True) -> list[dict
     return songs
 
 
-def get_private_radar_tracks(cookie: str, *, verbose: bool = True) -> list[dict]:
+def get_private_radar_tracks(
+    cookie: str,
+    *,
+    api_base_url: str | None = None,
+    verbose: bool = True,
+) -> list[dict]:
     """Fetch tracks in NetEase's daily-updated Private Radar playlist."""
     songs = _fetch_songs(
-        PLAYLIST_TRACKS_URL,
+        _api_url("playlist/track/all", api_base_url),
         cookie,
         params={"id": PRIVATE_RADAR_PLAYLIST_ID, "limit": 1000, "offset": 0},
         song_list_path=("songs",),

@@ -11,6 +11,7 @@ class Settings:
     spotify_refresh_token: str
     spotify_playlist_id: str
     netease_cookie: str
+    netease_api_base_url: str
     spotify_radar_playlist_id: str | None = None
     match_level: str = DEFAULT_MATCH_LEVEL
 
@@ -21,6 +22,7 @@ REQUIRED_ENV_VARS = (
     "SPOTIFY_REFRESH_TOKEN",
     "SPOTIFY_PLAYLIST_ID",
     "NETEASE_COOKIE",
+    "NETEASE_API_BASE_URL",
 )
 
 
@@ -37,6 +39,7 @@ def load_settings() -> Settings:
         spotify_refresh_token=os.environ["SPOTIFY_REFRESH_TOKEN"],
         spotify_playlist_id=os.environ["SPOTIFY_PLAYLIST_ID"],
         netease_cookie=os.environ["NETEASE_COOKIE"],
+        netease_api_base_url=os.environ["NETEASE_API_BASE_URL"].strip().rstrip("/"),
         spotify_radar_playlist_id=os.getenv("SPOTIFY_RADAR_PLAYLIST_ID") or None,
         match_level=match_level,
     )

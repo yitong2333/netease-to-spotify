@@ -1,3 +1,5 @@
+import pytest
+
 from src import netease
 
 
@@ -27,9 +29,13 @@ def test_daily_recommendations_use_api_service_and_normalize_response(monkeypatc
 
     monkeypatch.setattr(netease.requests, "get", fake_get)
 
-    result = netease.get_daily_recommendations("MUSIC_U=session; __csrf=csrf-token", verbose=False)
+    result = netease.get_daily_recommendations(
+        "MUSIC_U=session; __csrf=csrf-token",
+        api_base_url="https://music-api.example.com/",
+        verbose=False,
+    )
 
-    assert request["url"] == "https://wyy.yiton.uk/recommend/songs"
+    assert request["url"] == "https://music-api.example.com/recommend/songs"
     assert request["params"] == {}
     assert request["headers"]["Cookie"] == "MUSIC_U=session; __csrf=csrf-token"
     assert len(result) == 32
@@ -71,9 +77,13 @@ def test_private_radar_tracks_fetch_playlist_and_handles_string_artist(monkeypat
 
     monkeypatch.setattr(netease.requests, "get", fake_get)
 
-    result = netease.get_private_radar_tracks("MUSIC_U=session", verbose=False)
+    result = netease.get_private_radar_tracks(
+        "MUSIC_U=session",
+        api_base_url="https://music-api.example.com",
+        verbose=False,
+    )
 
-    assert request["url"] == "https://wyy.yiton.uk/playlist/track/all"
+    assert request["url"] == "https://music-api.example.com/playlist/track/all"
     assert request["params"] == {
         "id": "3136952023",
         "limit": 1000,
@@ -88,3 +98,15 @@ def test_private_radar_tracks_fetch_playlist_and_handles_string_artist(monkeypat
             "duration_ms": 190000,
         }
     ]
+
+
+def test_api_base_url_must_be_configured(monkeypatch):
+    monkeypatch.delenv("NETEASE_API_BASE_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="NETEASE_API_BASE_URL"):
+        netease._api_url("recommend/songs")
+
+
+def test_api_base_url_requires_http_scheme():
+    with pytest.raises(ValueError, match="http:// or https://"):
+        netease._api_url("recommend/songs", "music-api.example.com")

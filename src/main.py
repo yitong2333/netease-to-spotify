@@ -95,7 +95,10 @@ def main(songs: list[dict] | None = None) -> None:
 
     if songs is None:
         print("Getting NetEase daily recommendations...")
-        songs = get_daily_recommendations(settings.netease_cookie)
+        songs = get_daily_recommendations(
+            settings.netease_cookie,
+            api_base_url=settings.netease_api_base_url,
+        )
     print(f"Found {len(songs)} NetEase daily recommendations.")
 
     if not songs:
@@ -113,7 +116,10 @@ def main(songs: list[dict] | None = None) -> None:
                 "SPOTIFY_PLAYLIST_ID because each playlist is replaced separately."
             )
         print("Getting NetEase Private Radar tracks...")
-        radar_songs = get_private_radar_tracks(settings.netease_cookie)
+        radar_songs = get_private_radar_tracks(
+            settings.netease_cookie,
+            api_base_url=settings.netease_api_base_url,
+        )
         if not radar_songs:
             raise RuntimeError("NetEase Private Radar returned no tracks.")
 

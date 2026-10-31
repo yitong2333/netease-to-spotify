@@ -265,7 +265,10 @@ def _run_sync() -> None:
     from src.main import main as sync_main
     from src.netease import get_daily_recommendations
 
-    songs = get_daily_recommendations(cookie)
+    songs = get_daily_recommendations(
+        cookie,
+        api_base_url=os.environ.get("NETEASE_API_BASE_URL"),
+    )
     if not songs:
         raise RuntimeError("网易云每日推荐为空；已停止，不会修改 Spotify Playlist。")
     sync_main(songs=songs)

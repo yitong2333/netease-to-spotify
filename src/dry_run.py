@@ -13,7 +13,10 @@ def _is_japanese(value: str) -> bool:
 def main() -> None:
     settings = load_settings()
     print(f"Spotify matching level: {settings.match_level}")
-    songs = get_daily_recommendations(settings.netease_cookie)
+    songs = get_daily_recommendations(
+        settings.netease_cookie,
+        api_base_url=settings.netease_api_base_url,
+    )
     if not songs:
         raise RuntimeError("NetEase returned no recommendations.")
 

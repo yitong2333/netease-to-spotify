@@ -51,7 +51,9 @@ python setup.py
 
 ### 4. 获取网易云 Cookie
 
-项目通过 [wyy.yiton.uk](https://wyy.yiton.uk/) 提供的 NeteaseCloudMusicApi Enhanced 服务读取网易云推荐和私人雷达歌单；该服务是第三方 API，不是网易云官方服务。为获取个性化数据，程序会把网易云登录 Cookie 通过 HTTPS 请求发送给该服务。请只在信任该服务的情况下使用；Cookie 可能过期，不能保证永久有效。**不要把 Cookie 发到聊天、Issue、截图或提交到代码仓库。**
+本项目不会内置或代为托管网易云 API。每位使用者都需要自行部署 [NeteaseCloudMusicApi Enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced)，并把部署后可访问的 API 根地址配置为环境变量 `NETEASE_API_BASE_URL`。请按上游项目 README 部署；API 服务必须能从运行本同步程序的环境访问。该项目是社区第三方 API，不是网易云官方服务。
+
+程序会把网易云登录 Cookie 发送到你配置的 API 服务，以读取个性化推荐和私人雷达。请妥善保护自己的 API 服务和 Cookie；Cookie 可能过期。**不要把 Cookie 发到聊天、Issue、截图或提交到代码仓库。**
 
 以 Chrome 为例：
 
@@ -63,9 +65,9 @@ python setup.py
 
 如果请求标头里没有 `Cookie`，先确认网页已登录，再刷新并查看新请求。不同请求显示的 Cookie 内容可能不同；请选网易云页面刚发出的请求，并复制其完整的 `Cookie` 请求标头。
 
-### 5. 配置 GitHub Secrets
+### 5. 配置 GitHub Secrets 和 Variables
 
-在自己的 Fork 中打开：**Settings → Secrets and variables → Actions → New repository secret**。
+先配置敏感值。在自己的 Fork 中打开：**Settings → Secrets and variables → Actions → New repository secret**。
 
 逐项填写下表的 **Name** 和对应的 **Secret / Value**：
 
@@ -76,11 +78,24 @@ python setup.py
 | `SPOTIFY_REFRESH_TOKEN` | `setup.py` 获取的 Refresh Token |
 | `SPOTIFY_PLAYLIST_ID` | 每日推荐的目标 Spotify Playlist ID |
 | `SPOTIFY_RADAR_PLAYLIST_ID` | （可选）私人雷达的独立 Spotify Playlist ID |
-| `NETEASE_COOKIE` | 自己网易云登录会话的完整 Cookie |
+| `NETEASE_COOKIE` | 自己网易云登录会话的完整 Cookie，作为 Secret 保存 |
 
 Secret 保存后 GitHub 不会再显示原值，这是正常的。以后 Cookie 更新时，修改已有的 `NETEASE_COOKIE` Secret 即可，不要改 Secret 名称。
 
-匹配等级是可选的 GitHub Repository Variable，不是 Secret：在 **Settings → Secrets and variables → Actions → Variables** 中创建 `MATCH_LEVEL`，可选 `strict`、`balanced` 或 `relaxed`；未设置时默认为 `balanced`。`strict` 要求更强的标题/艺人/专辑/时长证据；`balanced` 使用默认规则；`relaxed` 会扩大第二次搜索并接受更宽的标题相似度，但仍拒绝明确艺人冲突和版本冲突。
+然后在 **Settings → Secrets and variables → Actions → Variables → New repository variable** 中配置：
+
+| Name | Value |
+| --- | --- |
+| `NETEASE_API_BASE_URL` | 你自行部署的 API 根地址，例如 `https://music-api.example.com`；不要附加 `/recommend/songs` 等接口路径，也不要在末尾加 `/` |
+| `MATCH_LEVEL` | （可选）匹配等级；可填 `strict`、`balanced` 或 `relaxed`，未设置时为 `balanced` |
+
+`MATCH_LEVEL` 控制匹配宽松程度：
+
+- `strict`：标题须严格相符，并要求较强的艺人/专辑/时长佐证，适合优先避免误匹配。
+- `balanced`：默认等级，使用常规标题相似度与匹配证据要求。
+- `relaxed`：适度放宽标题相似度，并在第二次 Spotify 搜索时使用更宽的查询；仍会拒绝明确的艺人冲突和版本冲突。
+
+网易云 API 地址和匹配等级都属于 Repository **Variables**，不是 Secrets。若没有设置 `NETEASE_API_BASE_URL`，程序会报缺少环境变量并停止，不会连接项目作者或其他人的默认 API。
 
 ### 6. 先运行 Dry Run
 
@@ -98,7 +113,7 @@ Dry Run 只获取推荐、搜索和匹配，不会清空、添加或修改 Spoti
 
 ### 本地自动同步（macOS）
 
-这是与 GitHub Actions 分开的本地方案：它不会上传凭据或同步日志，也不会改变 GitHub Actions 的配置。网易云 Cookie 会随 API 请求发送到上面提到的第三方服务，不会写入本地 `.env`。它需要一台持续使用的 macOS 用户会话；LaunchAgent 每 5 分钟轮询一次，但每天只在北京时间 06:10 之后执行一次。
+这是与 GitHub Actions 分开的本地方案：它不会上传凭据或同步日志，也不会改变 GitHub Actions 的配置。网易云 Cookie 从本地浏览器会话读取，并随 API 请求发送到 `NETEASE_API_BASE_URL` 指定的、由你自行部署的服务；Cookie 不写入本地 `.env`。它需要一台持续使用的 macOS 用户会话；LaunchAgent 每 5 分钟轮询一次，但每天只在北京时间 06:10 之后执行一次。
 
 #### 首次设置
 
@@ -116,7 +131,7 @@ Dry Run 只获取推荐、搜索和匹配，不会清空、添加或修改 Spoti
    chmod 600 ~/.config/netease-to-spotify/.env
    ```
 
-   本地运行需要 `SPOTIFY_CLIENT_ID`、`SPOTIFY_CLIENT_SECRET`、`SPOTIFY_REFRESH_TOKEN`、`SPOTIFY_PLAYLIST_ID`，以及可选的 `SPOTIFY_RADAR_PLAYLIST_ID` 和 `MATCH_LEVEL`。`MATCH_LEVEL` 可填写 `strict`、`balanced` 或 `relaxed`，省略时使用 `balanced`。如配置雷达歌单 ID，本地同步也会获取私人雷达。
+   在该 `.env` 文件中设置 `NETEASE_API_BASE_URL` 为自己部署的 API 根地址；同时确认包含 `SPOTIFY_CLIENT_ID`、`SPOTIFY_CLIENT_SECRET`、`SPOTIFY_REFRESH_TOKEN`、`SPOTIFY_PLAYLIST_ID`，以及可选的 `SPOTIFY_RADAR_PLAYLIST_ID`。`MATCH_LEVEL` 可填写 `strict`、`balanced` 或 `relaxed`，省略时使用 `balanced`。如配置雷达歌单 ID，本地同步也会获取私人雷达。
 
 3. 先手动运行一次：`.venv/bin/python scripts/local_sync.py`。第一次运行会打开独立浏览器 Profile，请手动登录网易云；密码不会被脚本读取或保存。成功后确认 Spotify Playlist 已更新。
 
@@ -142,7 +157,7 @@ tail -f ~/Library/Logs/netease-to-spotify/sync.log \
 
 #### 故障排查
 
-- `Missing local environment values`：检查 `~/.config/netease-to-spotify/.env` 是否包含上面的四个变量，并确认权限为 600。
+- `Missing required environment variable: NETEASE_API_BASE_URL`：检查 `~/.config/netease-to-spotify/.env` 是否设置了自己部署的 API 根地址，并确认运行本地同步的 Mac 可以访问该地址。
 - `网易云浏览器会话未登录或已失效`：再次运行本地同步，在打开的独立浏览器中登录网易云；不要把 Cookie 复制到 `.env` 或日志。
 - `launchctl print` 找不到服务：重新运行 `scripts/install_local_sync.sh`，并确认 `.venv/bin/python` 存在。
 - Spotify Playlist 没有更新：先运行一次手动同步并查看两个本地日志文件；如果当天已经尝试过一次，LaunchAgent 不会自动重试，修复后请手动运行。

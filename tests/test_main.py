@@ -8,6 +8,7 @@ import src.main as sync_main
 def test_radar_sync_uses_a_separate_spotify_playlist(monkeypatch):
     settings = SimpleNamespace(
         netease_cookie="cookie",
+        netease_api_base_url="https://music-api.example.com",
         spotify_client_id="client",
         spotify_client_secret="secret",
         spotify_refresh_token="refresh",
@@ -18,8 +19,8 @@ def test_radar_sync_uses_a_separate_spotify_playlist(monkeypatch):
     radar = [{"name": "Radar Song", "artists": ["Artist"]}]
     replaces = []
     monkeypatch.setattr(sync_main, "load_settings", lambda: settings)
-    monkeypatch.setattr(sync_main, "get_daily_recommendations", lambda cookie: daily)
-    monkeypatch.setattr(sync_main, "get_private_radar_tracks", lambda cookie: radar)
+    monkeypatch.setattr(sync_main, "get_daily_recommendations", lambda cookie, **kwargs: daily)
+    monkeypatch.setattr(sync_main, "get_private_radar_tracks", lambda cookie, **kwargs: radar)
     monkeypatch.setattr(sync_main, "get_access_token", lambda *args: "token")
     monkeypatch.setattr(sync_main, "check_playlist", lambda *args: None)
     monkeypatch.setattr(sync_main, "search_track", lambda *args, **kwargs: "track-id")

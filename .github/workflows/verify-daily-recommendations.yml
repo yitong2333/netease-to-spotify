@@ -25,6 +25,7 @@ jobs:
       - name: Fetch recommendations without writing to Spotify
         env:
           NETEASE_COOKIE: ${{ secrets.NETEASE_COOKIE }}
+          NETEASE_API_BASE_URL: ${{ vars.NETEASE_API_BASE_URL }}
           PYTHONPATH: .
         run: |
           python - <<'PY'

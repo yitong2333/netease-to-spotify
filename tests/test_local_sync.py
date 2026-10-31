@@ -122,7 +122,7 @@ def test_local_script_fetches_recommendations_once_and_reuses_them(monkeypatch):
     monkeypatch.setattr(local_sync, "_read_browser_cookie", lambda path: "cookie")
     monkeypatch.setattr(
         "src.netease.get_daily_recommendations",
-        lambda cookie: fetched.append(cookie) or songs,
+        lambda cookie, **kwargs: fetched.append(cookie) or songs,
     )
     monkeypatch.setattr("src.main.main", lambda songs=None: synced.append(songs))
     local_sync._run_sync()
@@ -134,7 +134,7 @@ def test_empty_recommendations_do_not_enter_spotify_sync(monkeypatch):
     synced = []
     monkeypatch.setattr(local_sync, "_load_local_env", lambda path: None)
     monkeypatch.setattr(local_sync, "_read_browser_cookie", lambda path: "cookie")
-    monkeypatch.setattr("src.netease.get_daily_recommendations", lambda cookie: [])
+    monkeypatch.setattr("src.netease.get_daily_recommendations", lambda cookie, **kwargs: [])
     monkeypatch.setattr("src.main.main", lambda songs=None: synced.append(songs))
     with pytest.raises(RuntimeError, match="推荐为空"):
         local_sync._run_sync()
@@ -147,7 +147,7 @@ def test_recommendation_failure_does_not_enter_spotify_sync(monkeypatch):
     monkeypatch.setattr(local_sync, "_read_browser_cookie", lambda path: "cookie")
     monkeypatch.setattr(
         "src.netease.get_daily_recommendations",
-        lambda cookie: (_ for _ in ()).throw(RuntimeError("code 301")),
+        lambda cookie, **kwargs: (_ for _ in ()).throw(RuntimeError("code 301")),
     )
     monkeypatch.setattr("src.main.main", lambda songs=None: synced.append(songs))
     with pytest.raises(RuntimeError, match="301"):
@@ -163,6 +163,7 @@ def test_default_production_entry_still_fetches_recommendations(monkeypatch):
         "load_settings",
         lambda: SimpleNamespace(
             netease_cookie="cookie",
+            netease_api_base_url="https://music-api.example.com",
             spotify_client_id="id",
             spotify_client_secret="secret",
             spotify_refresh_token="refresh",
@@ -172,7 +173,7 @@ def test_default_production_entry_still_fetches_recommendations(monkeypatch):
     monkeypatch.setattr(
         production_main,
         "get_daily_recommendations",
-        lambda cookie: fetched.append(cookie) or songs,
+        lambda cookie, **kwargs: fetched.append(cookie) or songs,
     )
     monkeypatch.setattr(production_main, "get_access_token", lambda *args: "token")
     monkeypatch.setattr(production_main, "check_playlist", lambda *args: None)
@@ -189,6 +190,7 @@ def test_production_sync_uses_one_playlist_replace_request(monkeypatch):
         "load_settings",
         lambda: SimpleNamespace(
             netease_cookie="cookie",
+            netease_api_base_url="https://music-api.example.com",
             spotify_client_id="id",
             spotify_client_secret="secret",
             spotify_refresh_token="refresh",
@@ -214,6 +216,7 @@ def test_zero_matches_do_not_call_playlist_replace(monkeypatch):
         "load_settings",
         lambda: SimpleNamespace(
             netease_cookie="cookie",
+            netease_api_base_url="https://music-api.example.com",
             spotify_client_id="id",
             spotify_client_secret="secret",
             spotify_refresh_token="refresh",
