@@ -1,6 +1,7 @@
 import requests
 
 from src.config import load_settings
+from src.match_levels import DEFAULT_MATCH_LEVEL
 from src.netease import get_daily_recommendations, get_private_radar_tracks
 from src.spotify import (
     get_access_token,
@@ -45,7 +46,12 @@ def check_playlist(
     print("Spotify playlist access: OK")
 
 
-def _match_tracks(access_token: str, songs: list[dict], source_name: str) -> list[str]:
+def _match_tracks(
+    access_token: str,
+    songs: list[dict],
+    source_name: str,
+    match_level: str,
+) -> list[str]:
     track_ids = []
     seen_track_ids = set()
     try:
@@ -56,6 +62,7 @@ def _match_tracks(access_token: str, songs: list[dict], source_name: str) -> lis
                 song["artists"],
                 song.get("album", ""),
                 duration_ms=song.get("duration_ms"),
+                match_level=match_level,
             )
 
             if track_id and track_id not in seen_track_ids:
@@ -83,6 +90,8 @@ def _match_tracks(access_token: str, songs: list[dict], source_name: str) -> lis
 
 def main(songs: list[dict] | None = None) -> None:
     settings = load_settings()
+    match_level = getattr(settings, "match_level", DEFAULT_MATCH_LEVEL)
+    print(f"Spotify matching level: {match_level}")
 
     if songs is None:
         print("Getting NetEase daily recommendations...")
@@ -122,9 +131,16 @@ def main(songs: list[dict] | None = None) -> None:
     if radar_playlist_id:
         check_playlist(access_token, radar_playlist_id)
 
-    track_ids = _match_tracks(access_token, songs, "NetEase recommendations")
+    track_ids = _match_tracks(
+        access_token, songs, "NetEase recommendations", match_level
+    )
     radar_track_ids = (
-        _match_tracks(access_token, radar_songs, "NetEase Private Radar")
+        _match_tracks(
+            access_token,
+            radar_songs,
+            "NetEase Private Radar",
+            match_level,
+        )
         if radar_songs is not None
         else None
     )

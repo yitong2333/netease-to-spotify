@@ -23,6 +23,43 @@ def run_search(monkeypatch, source_title, source_artists, source_album, items):
     )
 
 
+def test_match_level_controls_title_similarity():
+    source = "A Song From Yesterday"
+    candidate = "A Song From Yestarday"
+
+    assert not spotify._title_match(source, candidate, "strict")
+    assert spotify._title_match(source, candidate, "balanced")
+    assert spotify._title_match(source, candidate, "relaxed")
+
+
+def test_match_level_rejects_unknown_value():
+    import pytest
+
+    with pytest.raises(ValueError, match="MATCH_LEVEL"):
+        spotify._title_match("Song", "Song", "aggressive")
+
+
+def test_relaxed_level_uses_broader_second_search(monkeypatch):
+    calls = []
+
+    def fake_get(_url, _token, params):
+        calls.append(dict(params))
+        return FakeResponse([])
+
+    monkeypatch.setattr(spotify, "_spotify_get", fake_get)
+    assert spotify.search_track(
+        "test-token",
+        "Some Song (Live at Venue)",
+        ["Artist"],
+        "Album",
+        match_level="relaxed",
+    ) is None
+
+    assert len(calls) == 2
+    assert calls[0]["q"] != calls[1]["q"]
+    assert 'track:"some song"' in calls[1]["q"]
+
+
 def run_search_with_diagnostics(monkeypatch, source_title, source_artists, source_album, items):
     monkeypatch.setattr(
         spotify,
@@ -163,6 +200,63 @@ def test_title_core_accepts_safe_metadata_variants():
         "Romeo And Juliet",
         "Romeo And Juliet - Live Version",
     )
+    assert spotify._title_match(
+        "止まり木の歌 (feat. 安次嶺希和子)",
+        "止まり木の歌 - feat. 安次嶺希和子",
+    )
+
+
+def test_curated_title_aliases_accept_matching_artist_and_album(monkeypatch):
+    cases = [
+        (
+            "欲望之音色",
+            ["凋叶棕"],
+            "徒",
+            "欲望之音色 - Yokubou no Neiro",
+            ["凋叶棕"],
+            "徒",
+        ),
+        (
+            "妖魔夜行",
+            ["PHOENIX Project"],
+            "Scarlet Inferno",
+            "Night Parade of Yokai",
+            ["Phoenix Project"],
+            "Scarlet Inferno",
+        ),
+        (
+            "止まり木の歌 (feat. 安次嶺希和子)",
+            ["未来古代楽団", "安次嶺希和子"],
+            "超人間要塞ヒロシ戦記（オリジナルサウンドトラック）",
+            "止まり木の歌 - feat. 安次嶺希和子",
+            ["Mirai Kodai Orchestra", "Kiwako Ashimine"],
+            "超人間要塞ヒロシ戦記 (オリジナルサウンドトラック)",
+        ),
+    ]
+    for index, (source, source_artists, source_album, candidate, candidate_artists, candidate_album) in enumerate(cases):
+        assert run_search(
+            monkeypatch,
+            source,
+            source_artists,
+            source_album,
+            [track(f"alias-{index}", candidate, candidate_artists, candidate_album)],
+        ) == f"alias-{index}"
+
+
+def test_curated_title_alias_does_not_override_version_conflict(monkeypatch):
+    candidate = track(
+        "wrong-version",
+        "Night Parade of Yokai - Remix",
+        ["Phoenix Project"],
+        "Scarlet Inferno",
+    )
+    assert run_search(
+        monkeypatch,
+        "妖魔夜行",
+        ["PHOENIX Project"],
+        "Scarlet Inferno",
+        [candidate],
+    ) is None
 
 
 def test_additional_safe_metadata_and_artist_aliases(monkeypatch):

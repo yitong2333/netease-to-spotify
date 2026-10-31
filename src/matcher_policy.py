@@ -183,6 +183,7 @@ def apply(spotify: ModuleType) -> None:
         candidate: dict,
         allow_cross_script_title: bool = False,
         diagnostics: dict | None = None,
+        match_level: str = "balanced",
     ) -> bool:
         isrc = (candidate.get("external_ids") or {}).get("isrc")
         if not isrc:
@@ -214,12 +215,13 @@ def apply(spotify: ModuleType) -> None:
         candidate_name = candidate.get("name", "")
         verification["predicates"]["title_identity"] = (
             "PASS"
-            if allow_cross_script_title or spotify._title_match(source_name, candidate_name)
+            if allow_cross_script_title
+            or spotify._title_match(source_name, candidate_name, match_level)
             else "FAIL"
         )
         if (
             not allow_cross_script_title
-            and not spotify._title_match(source_name, candidate_name)
+            and not spotify._title_match(source_name, candidate_name, match_level)
         ):
             verification["result"] = "NOT_CONFIRMED"
             verification["failure_predicates"] = ["title_identity"]
@@ -326,7 +328,7 @@ def apply(spotify: ModuleType) -> None:
             }
             recording_artist_match = bool(artist_ids & recording_artist_ids)
             recording_title_match = spotify._title_match(
-                source_name, recording.get("title", "")
+                source_name, recording.get("title", ""), match_level
             )
             disambiguation = recording.get("disambiguation", "")
             recording_version_conflict = bool(

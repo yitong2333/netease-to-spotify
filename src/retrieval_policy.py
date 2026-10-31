@@ -14,6 +14,8 @@ import re
 import unicodedata
 from types import ModuleType
 
+from .match_levels import DEFAULT_MATCH_LEVEL, normalize_match_level
+
 _diagnostic_title_variant_hook = None
 
 
@@ -177,7 +179,9 @@ def apply(spotify: ModuleType) -> None:
         duration_ms: int | None = None,
         *,
         diagnostics: dict | None = None,
+        match_level: str = DEFAULT_MATCH_LEVEL,
     ) -> str | None:
+        match_level = normalize_match_level(match_level)
         inner_get = spotify._spotify_get
         spotify_search_count = 0
         first_search_empty = False
@@ -193,7 +197,9 @@ def apply(spotify: ModuleType) -> None:
 
             spotify_search_count += 1
             effective_params = dict(params)
-            if spotify_search_count == 2 and first_search_empty:
+            if spotify_search_count == 2 and (
+                first_search_empty or match_level == "relaxed"
+            ):
                 title_override = diagnostic_title_variant(name)
                 alias = None
                 if title_override:
@@ -250,6 +256,21 @@ def apply(spotify: ModuleType) -> None:
                         "Spotify retrieval fallback: "
                         f"query_index=2 mode=free-artist-text q={query}"
                     )
+                elif match_level == "relaxed":
+                    title = spotify._retrieval_query_title(name)
+                    artist_text = " ".join(
+                        spotify._spotify_query_value(artist)
+                        for artist in artists
+                        if artist
+                    )
+                    query = f'track:"{spotify._spotify_query_value(title)}"'
+                    if artist_text:
+                        query += f" {artist_text}"
+                    signal = "RELAXED_SECOND_QUERY_AFTER_REJECTED_CANDIDATES"
+                    print(
+                        "Spotify retrieval fallback: "
+                        f"query_index=2 mode=relaxed-free-artist-text q={query}"
+                    )
                 if title_override or source_artist_has_asian_script:
                     effective_params["q"] = query
                     effective_params["limit"] = 10
@@ -258,6 +279,18 @@ def apply(spotify: ModuleType) -> None:
                         if signal not in signals:
                             signals.append(signal)
                         diagnostics["relaxed_second_query"] = query
+            if (
+                spotify_search_count == 2
+                and match_level == "relaxed"
+                and not source_artist_has_asian_script
+            ):
+                effective_params["q"] = query
+                effective_params["limit"] = 10
+                if diagnostics is not None:
+                    signals = diagnostics.setdefault("signals", [])
+                    if signal not in signals:
+                        signals.append(signal)
+                    diagnostics["relaxed_second_query"] = query
 
             response = inner_get(url, token, effective_params)
             if spotify_search_count == 1:
@@ -283,6 +316,7 @@ def apply(spotify: ModuleType) -> None:
                 album,
                 duration_ms,
                 diagnostics=diagnostics,
+                match_level=match_level,
             )
         finally:
             spotify._spotify_get = inner_get

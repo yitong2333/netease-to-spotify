@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from types import ModuleType
 
+from .match_levels import DEFAULT_MATCH_LEVEL, normalize_match_level
+
 
 def apply(spotify: ModuleType) -> None:
     original_search_track = spotify.search_track
@@ -35,10 +37,7 @@ def apply(spotify: ModuleType) -> None:
         if not item.get("id") or not isrc or not item_artists:
             return False
 
-        title_exact = (
-            spotify._normalize_text(spotify._title_core(name))
-            in spotify._title_keys(item_name)
-        )
+        title_exact = spotify._title_exact_match(name, item_name)
         if not title_exact:
             return False
         if spotify._version_conflicts(name, album, item_name, item_album):
@@ -83,7 +82,9 @@ def apply(spotify: ModuleType) -> None:
         duration_ms: int | None = None,
         *,
         diagnostics: dict | None = None,
+        match_level: str = DEFAULT_MATCH_LEVEL,
     ) -> str | None:
+        match_level = normalize_match_level(match_level)
         rank_one_items: list[dict] = []
         confirmed_isrcs: set[str] = set()
         inner_get = spotify._spotify_get
@@ -119,6 +120,7 @@ def apply(spotify: ModuleType) -> None:
                 album,
                 duration_ms,
                 diagnostics=diagnostics,
+                match_level=match_level,
             )
         finally:
             spotify._spotify_get = inner_get

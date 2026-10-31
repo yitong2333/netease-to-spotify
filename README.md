@@ -80,6 +80,8 @@ python setup.py
 
 Secret 保存后 GitHub 不会再显示原值，这是正常的。以后 Cookie 更新时，修改已有的 `NETEASE_COOKIE` Secret 即可，不要改 Secret 名称。
 
+匹配等级是可选的 GitHub Repository Variable，不是 Secret：在 **Settings → Secrets and variables → Actions → Variables** 中创建 `MATCH_LEVEL`，可选 `strict`、`balanced` 或 `relaxed`；未设置时默认为 `balanced`。`strict` 要求更强的标题/艺人/专辑/时长证据；`balanced` 使用默认规则；`relaxed` 会扩大第二次搜索并接受更宽的标题相似度，但仍拒绝明确艺人冲突和版本冲突。
+
 ### 6. 先运行 Dry Run
 
 打开自己的仓库 **Actions → NetEase Spotify Match Dry Run → Run workflow**。运行完成后查看日志和 Artifacts。
@@ -114,7 +116,7 @@ Dry Run 只获取推荐、搜索和匹配，不会清空、添加或修改 Spoti
    chmod 600 ~/.config/netease-to-spotify/.env
    ```
 
-   本地运行需要 `SPOTIFY_CLIENT_ID`、`SPOTIFY_CLIENT_SECRET`、`SPOTIFY_REFRESH_TOKEN`、`SPOTIFY_PLAYLIST_ID`，以及可选的 `SPOTIFY_RADAR_PLAYLIST_ID`。如配置雷达歌单 ID，本地同步也会获取私人雷达。
+   本地运行需要 `SPOTIFY_CLIENT_ID`、`SPOTIFY_CLIENT_SECRET`、`SPOTIFY_REFRESH_TOKEN`、`SPOTIFY_PLAYLIST_ID`，以及可选的 `SPOTIFY_RADAR_PLAYLIST_ID` 和 `MATCH_LEVEL`。`MATCH_LEVEL` 可填写 `strict`、`balanced` 或 `relaxed`，省略时使用 `balanced`。如配置雷达歌单 ID，本地同步也会获取私人雷达。
 
 3. 先手动运行一次：`.venv/bin/python scripts/local_sync.py`。第一次运行会打开独立浏览器 Profile，请手动登录网易云；密码不会被脚本读取或保存。成功后确认 Spotify Playlist 已更新。
 

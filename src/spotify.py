@@ -8,6 +8,7 @@ from typing import Any
 import requests
 
 from . import cjk_title_keys
+from .match_levels import DEFAULT_MATCH_LEVEL, TITLE_SIMILARITY, normalize_match_level
 
 
 def _load_cjk_converter():
@@ -201,6 +202,9 @@ TITLE_ALIASES = {
         "True to Your Heart (From Mulan)",
     ],
     "Just My Imagination": ["Just My Imagination (Running Away with Me)"],
+    # Confirmed alternate catalog titles seen in NetEase / Spotify results.
+    "妖魔夜行": ["Night Parade of Yokai"],
+    "欲望之音色": ["欲望之音色 - Yokubou no Neiro"],
 }
 
 # The source catalog masks one letter in this title with an asterisk.
@@ -252,7 +256,12 @@ def _version_terms(value: str) -> set[str]:
 def _title_core(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold().strip()
     normalized = re.sub(
-        r"\s*\((?:with|feat\.?|featuring)\b[^)]*\)",
+        r"\s*\((?:with|feat\.?|ft\.?|featuring)\b[^)]*\)",
+        "",
+        normalized,
+    )
+    normalized = re.sub(
+        r"\s+[-–—]\s+(?:with|feat\.?|ft\.?|featuring)\s+.+$",
         "",
         normalized,
     )
@@ -287,7 +296,21 @@ def _title_keys(value: str) -> set[str]:
     return {key for key in keys if key}
 
 
-def _title_match(source: str, candidate: str) -> bool:
+def _title_exact_match(source: str, candidate: str) -> bool:
+    candidate_keys = _title_keys(candidate)
+    return any(
+        _normalize_text(_title_core(variant)) in candidate_keys
+        for variant in _title_variants(source)
+    )
+
+
+def _title_match(
+    source: str,
+    candidate: str,
+    match_level: str = DEFAULT_MATCH_LEVEL,
+) -> bool:
+    match_level = normalize_match_level(match_level)
+    minimum_ratio, maximum_length_difference = TITLE_SIMILARITY[match_level]
     source_keys = set()
     for variant in _title_variants(source):
         source_keys.update(_title_keys(variant))
@@ -298,12 +321,20 @@ def _title_match(source: str, candidate: str) -> bool:
                 return True
             distance = abs(len(source_key) - len(candidate_key))
             ratio = difflib.SequenceMatcher(None, source_key, candidate_key).ratio()
-            if distance <= 3 and ratio >= 0.92:
+            if (
+                distance <= maximum_length_difference
+                and ratio >= minimum_ratio
+            ):
                 return True
     return False
 
 
-def _feature_title_match(source: str, candidate: str, candidate_artists: list[dict]) -> bool:
+def _feature_title_match(
+    source: str,
+    candidate: str,
+    candidate_artists: list[dict],
+    match_level: str = DEFAULT_MATCH_LEVEL,
+) -> bool:
     match = re.search(r"\s+(?:feat\.?|ft\.?|featuring)\s+(.+?)\s*$", source, re.IGNORECASE)
     if not match:
         return False
@@ -319,16 +350,23 @@ def _feature_title_match(source: str, candidate: str, candidate_artists: list[di
     }
     if not credited_names & spotify_names:
         return False
-    return _title_match(source[:match.start()].rstrip(), candidate)
+    return _title_match(source[:match.start()].rstrip(), candidate, match_level)
 
 
-def _soundtrack_title_match(source: str, candidate: str) -> bool:
+def _soundtrack_title_match(
+    source: str,
+    candidate: str,
+    match_level: str = DEFAULT_MATCH_LEVEL,
+) -> bool:
     match = re.search(
         r'\s+-\s+from\s+["“](.+?)["”]\s+soundtrack\s*$',
         candidate,
         re.IGNORECASE,
     )
-    return bool(match and _title_match(source, candidate[:match.start()].rstrip()))
+    return bool(
+        match
+        and _title_match(source, candidate[:match.start()].rstrip(), match_level)
+    )
 
 
 def _cjk_title_status(source: str, candidate: str) -> str:
@@ -574,13 +612,16 @@ def _musicbrainz_recording_identity_accepts(
     source_album: str,
     candidate: dict,
     allow_cross_script_title: bool = False,
+    match_level: str = DEFAULT_MATCH_LEVEL,
 ) -> bool:
     """Return true only for strong identity evidence; otherwise fail open."""
     isrc = (candidate.get("external_ids") or {}).get("isrc")
     if not isrc:
         return False
     candidate_name = candidate.get("name", "")
-    if not allow_cross_script_title and not _title_match(source_name, candidate_name):
+    if not allow_cross_script_title and not _title_match(
+        source_name, candidate_name, match_level
+    ):
         return False
     if _version_conflicts(
         source_name, source_album, candidate.get("name", ""),
@@ -606,7 +647,7 @@ def _musicbrainz_recording_identity_accepts(
         }
         if not artist_ids & recording_artist_ids:
             continue
-        if not _title_match(source_name, recording.get("title", "")):
+        if not _title_match(source_name, recording.get("title", ""), match_level):
             continue
         disambiguation = recording.get("disambiguation", "")
         if (
@@ -734,9 +775,10 @@ def _cross_script_title_rescue_eligible(
     source_name: str,
     candidate_name: str,
     version_reasons: list[str],
+    match_level: str = DEFAULT_MATCH_LEVEL,
 ) -> bool:
     return (
-        not _title_match(source_name, candidate_name)
+        not _title_match(source_name, candidate_name, match_level)
         and _contains_cjk(source_name)
         and not _contains_cjk(candidate_name)
         and not _contains_kana(candidate_name)
@@ -767,8 +809,10 @@ def search_track(
     duration_ms: int | None = None,
     *,
     diagnostics: dict | None = None,
+    match_level: str = DEFAULT_MATCH_LEVEL,
 ) -> str | None:
     """Find the most reliable candidate using two bounded searches."""
+    match_level = normalize_match_level(match_level)
     if not name or not artists:
         print(f"Not found: {name} - missing artist metadata")
         return None
@@ -831,7 +875,7 @@ def search_track(
 
             if not item_id:
                 reasons.append("missing track ID")
-            title_matches = _title_match(name, item_name)
+            title_matches = _title_match(name, item_name, match_level)
             if not title_matches:
                 source_release_terms = _version_terms(album)
                 candidate_release_terms = _version_terms(item_album_name)
@@ -846,7 +890,7 @@ def search_track(
                         item_name,
                         flags=re.IGNORECASE,
                     )
-                    title_matches = _title_match(name, title_without_live)
+                    title_matches = _title_match(name, title_without_live, match_level)
             if not title_matches:
                 reasons.append("title mismatch")
             artist_score, _, artist_reliable = _artist_match_score(
@@ -856,7 +900,7 @@ def search_track(
             duration_points = _duration_score(
                 duration_ms, item.get("duration_ms")
             )
-            title_exact = _normalize_text(_title_core(name)) in _title_keys(item_name)
+            title_exact = _title_exact_match(name, item_name)
             version_reasons = _version_conflicts(
                 name, album, item_name, item_album_name
             )
@@ -867,17 +911,17 @@ def search_track(
                 reasons.append("likely rendition project")
                 title_matches = False
             if not title_matches and not version_reasons and _feature_title_match(
-                name, item_name, item_artists
+                name, item_name, item_artists, match_level
             ):
                 title_matches = True
                 reasons = [reason for reason in reasons if reason != "title mismatch"]
             if not title_matches and not version_reasons and _soundtrack_title_match(
-                name, item_name
+                name, item_name, match_level
             ):
                 title_matches = True
                 reasons = [reason for reason in reasons if reason != "title mismatch"]
             cross_script_title_rescue = _cross_script_title_rescue_eligible(
-                name, item_name, version_reasons
+                name, item_name, version_reasons, match_level
             )
             cjk_status = cjk_title_keys.NO_MATCH
             if not title_matches and not version_reasons:
@@ -894,6 +938,19 @@ def search_track(
                 artists, item_artists
             )
             duration_corroborated = duration_points >= 40
+            if match_level == "strict":
+                baseline_artist_acceptable = artist_score > 0 and (
+                    artist_reliable
+                    or (title_exact and album_points >= 45 and duration_corroborated)
+                )
+            elif match_level == "relaxed" and title_matches and not title_exact:
+                baseline_artist_acceptable = artist_score > 0 and (
+                    (
+                        artist_reliable
+                        and (album_points >= 30 or duration_corroborated)
+                    )
+                    or (album_points >= 45 and duration_corroborated)
+                )
             baseline_accept = (
                 title_matches
                 and not version_reasons
@@ -957,6 +1014,7 @@ def search_track(
                         identity_verified = _musicbrainz_recording_identity_accepts(
                             name, artists, album, item,
                             allow_cross_script_title=cross_script_title_rescue,
+                            match_level=match_level,
                             diagnostics=diagnostics,
                         )
                         print(
