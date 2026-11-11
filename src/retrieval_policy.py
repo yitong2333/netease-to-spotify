@@ -10,6 +10,7 @@ unchanged.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from types import ModuleType
 
@@ -163,8 +164,21 @@ def apply(spotify: ModuleType) -> None:
         return result
 
     def retrieval_title(name: str) -> str:
-        core = spotify._title_core(name)
-        return core or name
+        normalized = unicodedata.normalize("NFKC", name).strip()
+        without_parenthetical_suffix = re.sub(
+            r"\s*\([^)]*\)\s*$", "", normalized
+        ).strip()
+        if without_parenthetical_suffix != normalized:
+            core = spotify._title_core(without_parenthetical_suffix)
+            return core or without_parenthetical_suffix or name
+
+        without_feature_credit = re.sub(
+            r"\s+[-–—]\s+(?:with\s+|featuring\s+|feat(?:\.|\s+)|ft(?:\.|\s+)).+$",
+            "",
+            normalized,
+            flags=re.IGNORECASE,
+        ).strip()
+        return without_feature_credit or name
 
     spotify._retrieval_artist_alias = retrieval_artist_alias
     spotify._retrieval_query_title = retrieval_title
