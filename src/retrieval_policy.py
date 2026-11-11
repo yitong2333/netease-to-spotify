@@ -10,7 +10,6 @@ unchanged.
 
 from __future__ import annotations
 
-import re
 import unicodedata
 from types import ModuleType
 
@@ -165,8 +164,7 @@ def apply(spotify: ModuleType) -> None:
 
     def retrieval_title(name: str) -> str:
         core = spotify._title_core(name)
-        simplified = re.sub(r"\s*\([^)]*\)\s*$", "", core).strip()
-        return simplified or core or name
+        return core or name
 
     spotify._retrieval_artist_alias = retrieval_artist_alias
     spotify._retrieval_query_title = retrieval_title
@@ -242,7 +240,9 @@ def apply(spotify: ModuleType) -> None:
                         diagnostics["retrieval_artist"] = alias
                         diagnostics["retrieval_title"] = title
                 elif not title_override and source_artist_has_asian_script:
-                    title = spotify._spotify_query_value(name)
+                    title = spotify._spotify_query_value(
+                        spotify._retrieval_query_title(name)
+                    )
                     artist_text = " ".join(
                         spotify._spotify_query_value(artist)
                         for artist in artists

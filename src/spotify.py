@@ -261,7 +261,7 @@ def _title_core(value: str) -> str:
         normalized,
     )
     normalized = re.sub(
-        r"\s+[-–—]\s+(?:with|feat\.?|ft\.?|featuring)\s+.+$",
+        r"\s+[-–—]\s+(?:with\s+|featuring\s+|feat(?:\.|\s+)|ft(?:\.|\s+)).+$",
         "",
         normalized,
     )
